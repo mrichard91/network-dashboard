@@ -5,13 +5,21 @@ A comprehensive network reconnaissance and monitoring system that discovers host
 ## Architecture
 
 ```
-┌─────────────┐     ┌─────────────┐     ┌─────────────┐     ┌─────────────┐
-│   Scanner   │────▶│     API     │────▶│  PostgreSQL │     │     UI      │
-│    (Go)     │     │  (FastAPI)  │◀────│             │     │   (React)   │
-└─────────────┘     └─────────────┘     └─────────────┘     └─────────────┘
-                           ▲                                       │
-                           └───────────────────────────────────────┘
+                           Host Network                    │   Internal Network
+                                                           │
+┌─────────────┐                                            │
+│   Scanner   │──┐                                         │
+│    (Go)     │  │                                         │
+└─────────────┘  │    ┌──────────────────────────────────────────────────────┐
+                 │    │                                    │                 │
+                 └───▶│  :3000  ┌───────────┐    ┌─────────────┐    ┌──────────────┐
+                      │ ───────▶│  nginx    │───▶│     API     │───▶│  PostgreSQL  │
+       Browser ──────▶│         │  (UI)     │    │  (FastAPI)  │    │              │
+                      │         └───────────┘    └─────────────┘    └──────────────┘
+                      └──────────────────────────────────────────────────────┘
 ```
+
+Only port 3000 is exposed. The scanner runs on the host network for raw network access but connects through the exposed nginx port. All other services communicate on an isolated internal network.
 
 **Technology Stack:**
 - **Scanner**: Go 1.24 - Network scanning with TCP connect or Zmap
@@ -152,9 +160,9 @@ docker compose down
 ```
 
 **Service URLs:**
-- UI: http://localhost:3000
-- API: http://localhost:8000
-- API Docs: http://localhost:8000/docs
+- Dashboard: http://localhost:3000
+- API: http://localhost:3000/api
+- API Docs: http://localhost:3000/api/docs
 
 ### Startup Order
 
@@ -199,8 +207,9 @@ npm run dev
 
 ## Security Notes
 
+- **Network isolation**: Only port 3000 (nginx) is exposed; database and API are on an isolated internal network
 - **Database credentials**: Set `POSTGRES_PASSWORD` in `.env` before running (required)
 - **Scanner config**: `scanner/config.yaml` is gitignored to protect your network topology
+- **Scanner privileges**: Runs on host network with elevated privileges (NET_ADMIN, NET_RAW) for raw socket scanning
 - **CORS**: Configured to allow all origins (development only) - restrict for production
-- **Scanner privileges**: Requires elevated privileges (NET_ADMIN, NET_RAW capabilities)
 - **Authentication**: Add API authentication before production deployment
