@@ -70,7 +70,7 @@ func main() {
 		tcpScanner = scanner.NewTCPScanner(cfg.Networks, cfg.Rate, cfg.Timeout)
 	}
 
-	fingerprinter := scanner.NewFingerprinter()
+	fingerprinter := scanner.NewZgrabFingerprinter()
 	apiClient := db.NewAPIClient(cfg.APIURL)
 
 	// Wait for API to be ready

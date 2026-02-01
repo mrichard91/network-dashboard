@@ -36,9 +36,26 @@ A Go-based network scanner that discovers hosts and fingerprints services.
 **Features:**
 - Two scanning modes: native TCP connect or Zmap (for faster large-scale scans)
 - CIDR notation support for network ranges
-- Service fingerprinting for common protocols (SSH, HTTP, FTP, databases, etc.)
+- Enhanced service fingerprinting via [zgrab2](https://github.com/zmap/zgrab2):
+  - TLS certificate extraction (subject, issuer, validity, SANs)
+  - Protocol-specific probing (SMTP EHLO, FTP AUTH TLS, SSH algorithms)
+  - Rich metadata for 15+ protocols
+- IANA port database with 5,800+ service definitions
 - Cron-based scheduling for continuous monitoring
 - Rate limiting to control network impact
+
+**Supported protocols for fingerprinting:**
+| Protocol | Data Extracted |
+|----------|----------------|
+| HTTP/S | Status, headers, server, title, TLS cert |
+| SMTP | Banner, EHLO capabilities, STARTTLS, TLS cert |
+| FTP | Banner, AUTH TLS support, TLS cert |
+| SSH | Version, software, key exchange algorithms |
+| MySQL | Version, protocol, auth plugin |
+| PostgreSQL | SSL support, version |
+| Redis | Version, auth requirement |
+| IMAP/POP3 | Banner, STARTTLS, TLS cert |
+| Telnet | Banner |
 
 **Key files:**
 - `main.go` - Orchestration, scheduling, and API submission

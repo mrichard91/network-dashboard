@@ -125,16 +125,33 @@ async def receive_scan_results(results: ScanResults, db: AsyncSession = Depends(
 
             ports_processed += 1
 
-            # Add service info if available
+            # Upsert service info if available
             if port_data.service_name or port_data.banner:
-                service = Service(
-                    port_id=port.id,
-                    service_name=port_data.service_name,
-                    service_version=port_data.service_version,
-                    banner=port_data.banner,
-                    fingerprint_data=port_data.fingerprint_data,
-                )
-                db.add(service)
+                # Check for existing service on this port
+                service_query = select(Service).where(Service.port_id == port.id)
+                service_result = await db.execute(service_query)
+                existing_service = service_result.scalar_one_or_none()
+
+                if existing_service:
+                    # Update existing service if data changed
+                    if (existing_service.service_name != port_data.service_name or
+                        existing_service.service_version != port_data.service_version or
+                        existing_service.banner != port_data.banner):
+                        existing_service.service_name = port_data.service_name
+                        existing_service.service_version = port_data.service_version
+                        existing_service.banner = port_data.banner
+                        existing_service.fingerprint_data = port_data.fingerprint_data
+                        existing_service.detected_at = datetime.utcnow()
+                else:
+                    # Create new service
+                    service = Service(
+                        port_id=port.id,
+                        service_name=port_data.service_name,
+                        service_version=port_data.service_version,
+                        banner=port_data.banner,
+                        fingerprint_data=port_data.fingerprint_data,
+                    )
+                    db.add(service)
 
         # Mark ports not seen in this scan as inactive
         existing_ports_query = select(Port).where(
