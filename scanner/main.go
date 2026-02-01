@@ -102,83 +102,79 @@ func main() {
 		}()
 
 		log.Println("Starting network scan...")
-		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Hour) // Allow more time for full port scans
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Hour)
 		defer cancel()
 
 		scanID := uuid.New()
 		log.Printf("Scan ID: %s", scanID)
-
-		var hostPorts map[string][]int
-		var err error
 
 		scannerName := "tcp"
 		if useZmap {
 			scannerName = "zmap"
 		}
 
-		if cfg.ScanAllPorts {
-			log.Printf("Scanning ALL ports (1-65535) on networks %v using %s", cfg.Networks, scannerName)
-			if useZmap {
-				hostPorts, err = zmapScanner.ScanAllPorts(ctx)
-			} else {
-				hostPorts, err = tcpScanner.ScanAllPorts(ctx)
-			}
-		} else {
-			ports := cfg.Ports
-			if len(ports) == 0 {
-				ports = scanner.CommonPorts()
-			}
-			log.Printf("Scanning ports %v on networks %v using %s", ports, cfg.Networks, scannerName)
-			if useZmap {
-				hostPorts, err = zmapScanner.ScanPorts(ctx, ports)
-			} else {
-				hostPorts, err = tcpScanner.ScanPorts(ctx, ports)
-			}
-		}
-
-		if err != nil {
-			log.Printf("Error during scan: %v", err)
-			return
-		}
-
-		log.Printf("Found %d hosts with open ports", len(hostPorts))
-
-		// Fingerprint services for each host and submit immediately
-		for ip, openPorts := range hostPorts {
-			log.Printf("Fingerprinting %s (%d ports)", ip, len(openPorts))
-
-			host := db.ScanResultHost{
-				IPAddress: ip,
-				Ports:     make([]db.ScanResultPort, 0, len(openPorts)),
+		// Callback to fingerprint and submit results immediately after each port scan
+		submitResults := func(port int, results []scanner.ZmapResult) {
+			if len(results) == 0 {
+				return
 			}
 
-			// Get service info using our native Go fingerprinter
-			serviceInfo := fingerprinter.FingerprintHost(ctx, ip, openPorts)
+			log.Printf("Port %d: fingerprinting %d hosts", port, len(results))
 
-			for _, port := range openPorts {
+			for _, r := range results {
+				// Fingerprint this single port on this host
+				serviceInfo := fingerprinter.FingerprintHost(ctx, r.IP, []int{r.Port})
+
 				portResult := db.ScanResultPort{
-					PortNumber: port,
+					PortNumber: r.Port,
 					Protocol:   "tcp",
 					State:      "open",
 				}
 
-				if info, ok := serviceInfo[port]; ok {
+				if info, ok := serviceInfo[r.Port]; ok {
 					portResult.ServiceName = info.ServiceName
 					portResult.ServiceVersion = info.ServiceVersion
 					portResult.Banner = info.Banner
 					portResult.FingerprintData = info.Fingerprint
 				}
 
-				host.Ports = append(host.Ports, portResult)
-			}
+				host := db.ScanResultHost{
+					IPAddress: r.IP,
+					Ports:     []db.ScanResultPort{portResult},
+				}
 
-			results := &db.ScanResults{
-				ScanID: scanID,
-				Hosts:  []db.ScanResultHost{host},
-			}
+				scanResults := &db.ScanResults{
+					ScanID: scanID,
+					Hosts:  []db.ScanResultHost{host},
+				}
 
-			if err := apiClient.SubmitResults(results); err != nil {
-				log.Printf("Failed to submit results for host %s: %v", ip, err)
+				if err := apiClient.SubmitResults(scanResults); err != nil {
+					log.Printf("Failed to submit results for %s:%d: %v", r.IP, r.Port, err)
+				} else {
+					log.Printf("Submitted: %s:%d (%s)", r.IP, r.Port, portResult.ServiceName)
+				}
+			}
+		}
+
+		ports := cfg.Ports
+		if len(ports) == 0 {
+			ports = scanner.CommonPorts()
+		}
+
+		if cfg.ScanAllPorts {
+			log.Printf("Scanning ALL ports (1-65535) on networks %v using %s", cfg.Networks, scannerName)
+			// For all-port scans, we still need to batch - but submit incrementally
+			if useZmap {
+				_, _ = zmapScanner.ScanAllPorts(ctx)
+			} else {
+				_, _ = tcpScanner.ScanAllPorts(ctx)
+			}
+		} else {
+			log.Printf("Scanning %d ports on networks %v using %s", len(ports), cfg.Networks, scannerName)
+			if useZmap {
+				_, _ = zmapScanner.ScanPorts(ctx, ports)
+			} else {
+				_, _ = tcpScanner.ScanPortsWithCallback(ctx, ports, submitResults)
 			}
 		}
 

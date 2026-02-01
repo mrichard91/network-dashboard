@@ -113,8 +113,16 @@ func (t *TCPScanner) ScanPort(ctx context.Context, port int) ([]ZmapResult, erro
 	return results, nil
 }
 
+// PortScanCallback is called after each port is scanned with results
+type PortScanCallback func(port int, results []ZmapResult)
+
 // ScanPorts scans multiple ports across all configured networks
 func (t *TCPScanner) ScanPorts(ctx context.Context, ports []int) (map[string][]int, error) {
+	return t.ScanPortsWithCallback(ctx, ports, nil)
+}
+
+// ScanPortsWithCallback scans ports and calls callback after each port
+func (t *TCPScanner) ScanPortsWithCallback(ctx context.Context, ports []int, callback PortScanCallback) (map[string][]int, error) {
 	results := make(map[string][]int)
 
 	for _, port := range ports {
@@ -135,6 +143,11 @@ func (t *TCPScanner) ScanPorts(ctx context.Context, ports []int) (map[string][]i
 
 		for _, r := range portResults {
 			results[r.IP] = append(results[r.IP], r.Port)
+		}
+
+		// Call callback with results for this port
+		if callback != nil && len(portResults) > 0 {
+			callback(port, portResults)
 		}
 	}
 
