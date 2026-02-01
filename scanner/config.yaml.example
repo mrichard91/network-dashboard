@@ -1,0 +1,57 @@
+# Network Scanner Configuration
+# Copy this file to config.yaml and customize for your environment
+
+# Networks to scan (CIDR notation)
+# Use your actual network ranges here
+networks:
+  - 10.0.0.0/24
+  - 192.168.1.0/24
+
+# Scan all ports (1-65535) instead of specific ports below
+scan_all_ports: false
+
+# Common service ports to scan
+ports:
+  - 21     # ftp
+  - 22     # ssh
+  - 23     # telnet
+  - 25     # smtp
+  - 53     # dns
+  - 80     # http
+  - 110    # pop3
+  - 111    # rpcbind
+  - 135    # msrpc
+  - 139    # netbios-ssn
+  - 143    # imap
+  - 443    # https
+  - 445    # microsoft-ds
+  - 993    # imaps
+  - 995    # pop3s
+  - 1433   # ms-sql-s
+  - 1521   # oracle
+  - 3306   # mysql
+  - 3389   # ms-wbt-server (RDP)
+  - 5432   # postgresql
+  - 5900   # vnc
+  - 6379   # redis
+  - 8080   # http-proxy
+  - 8443   # https-alt
+  - 27017  # mongodb
+
+# Scan schedule (cron format)
+schedule: "*/15 * * * *"
+
+# Scanner mode: "zmap" for raw socket scanning, "tcp" for Go TCP connect scanning
+scanner_mode: "tcp"
+
+# For tcp mode: concurrent connections (higher = faster but more load)
+rate: 500
+
+# Connection timeout in seconds (for banner grabbing)
+timeout: 2
+
+# Network interface to use (leave empty for auto-detect)
+interface: ""
+
+# API endpoint for submitting results
+api_url: "http://127.0.0.1:8000"
