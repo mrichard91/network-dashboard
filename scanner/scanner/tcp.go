@@ -156,6 +156,11 @@ func (t *TCPScanner) ScanPortsWithCallback(ctx context.Context, ports []int, cal
 
 // ScanAllPorts scans all 65535 ports using TCP connect
 func (t *TCPScanner) ScanAllPorts(ctx context.Context) (map[string][]int, error) {
+	return t.ScanAllPortsWithCallback(ctx, nil)
+}
+
+// ScanAllPortsWithCallback scans all ports and calls the callback after each port
+func (t *TCPScanner) ScanAllPortsWithCallback(ctx context.Context, callback PortScanCallback) (map[string][]int, error) {
 	results := make(map[string][]int)
 
 	// Scan all 65535 ports
@@ -176,7 +181,7 @@ func (t *TCPScanner) ScanAllPorts(ctx context.Context) (map[string][]int, error)
 			batchPorts = append(batchPorts, port)
 		}
 
-		batchResults, err := t.ScanPorts(ctx, batchPorts)
+		batchResults, err := t.ScanPortsWithCallback(ctx, batchPorts, callback)
 		if err != nil {
 			log.Printf("Error scanning ports %d-%d: %v", batchStart, batchEnd, err)
 			continue

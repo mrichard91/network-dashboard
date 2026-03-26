@@ -26,7 +26,7 @@ async def list_hosts(
     active_only: bool = False,
     db: AsyncSession = Depends(get_db),
 ):
-    query = select(Host)
+    query = select(Host).options(selectinload(Host.ports))
     if active_only:
         query = query.where(Host.is_active == True)
     query = query.offset(skip).limit(limit).order_by(Host.last_seen.desc())
@@ -34,17 +34,9 @@ async def list_hosts(
     result = await db.execute(query)
     hosts = result.scalars().all()
 
-    # Get port counts and latest annotations
+    # Get latest annotations
     host_ids = [h.id for h in hosts]
     if host_ids:
-        port_counts_query = (
-            select(Port.host_id, func.count(Port.id).label("count"))
-            .where(Port.host_id.in_(host_ids), Port.is_active == True)
-            .group_by(Port.host_id)
-        )
-        port_counts_result = await db.execute(port_counts_query)
-        port_counts = {row.host_id: row.count for row in port_counts_result}
-
         # Get latest annotation for each host
         from sqlalchemy import distinct
         from sqlalchemy.orm import aliased
@@ -69,7 +61,6 @@ async def list_hosts(
         annotations_result = await db.execute(annotations_query)
         latest_annotations = {a.host_id: a.note for a in annotations_result.scalars()}
     else:
-        port_counts = {}
         latest_annotations = {}
 
     return [
@@ -83,7 +74,8 @@ async def list_hosts(
             is_active=h.is_active,
             created_at=h.created_at,
             updated_at=h.updated_at,
-            port_count=port_counts.get(h.id, 0),
+            port_count=len([p for p in h.ports if p.is_active]),
+            ports=[p for p in h.ports if p.is_active],
             latest_annotation=latest_annotations.get(h.id),
         )
         for h in hosts

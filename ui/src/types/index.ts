@@ -100,3 +100,62 @@ export interface PortDetail {
   host_count: number;
   hosts: HostByPort[];
 }
+
+// UniFi types
+export interface UnifiDeviceInfo {
+  type: 'device';
+  name: string | null;
+  model: string | null;
+  shortname: string | null;
+  status: string | null;
+  productLine: string | null;
+  version: string | null;
+  firmwareStatus: string | null;
+  mac: string | null;
+  ip: string | null;
+  isConsole: boolean;
+  startupTime: string | null;
+}
+
+export interface UnifiClientInfo {
+  type: 'client';
+  name: string | null;
+  mac: string | null;
+  ip: string | null;
+  oui: string | null;
+  network: string | null;
+  lastSeen: number | null;
+  uptime: number | null;
+  isWired: boolean;
+  apName: string | null;
+  essid: string | null;
+  channel: number | null;
+  signal: number | null;
+}
+
+export type UnifiEnrichment = UnifiDeviceInfo | UnifiClientInfo;
+
+// Chat types
+export interface ChatToolCall {
+  name: string;
+  arguments: Record<string, unknown>;
+  result?: string;
+}
+
+export interface ChatMessage {
+  role: 'user' | 'assistant';
+  content: string;
+  toolCalls?: ChatToolCall[];
+}
+
+export interface ChatApiRequest {
+  message: string;
+  model?: string;
+  previous_response_id?: string;
+}
+
+export interface ChatApiResponse {
+  response: string;
+  response_id?: string;
+  tool_calls: ChatToolCall[];
+}

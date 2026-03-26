@@ -153,27 +153,31 @@ async def receive_scan_results(results: ScanResults, db: AsyncSession = Depends(
                     )
                     db.add(service)
 
-        # Mark ports not seen in this scan as inactive
-        existing_ports_query = select(Port).where(
-            Port.host_id == host.id, Port.is_active == True
-        )
-        existing_ports_result = await db.execute(existing_ports_query)
-        for existing_port in existing_ports_result.scalars():
-            port_key = (existing_port.port_number, existing_port.protocol)
-            if port_key not in seen_ports:
-                existing_port.is_active = False
-                event = ScanEvent(
-                    scan_id=scan_id,
-                    event_type="port_closed",
-                    host_id=host.id,
-                    port_id=existing_port.id,
-                    details={
-                        "port_number": existing_port.port_number,
-                        "protocol": existing_port.protocol,
-                    },
-                )
-                db.add(event)
-                events_created += 1
+        # Mark ports not seen in this scan as inactive, but only when
+        # the scanner submitted multiple ports (a full scan for this host).
+        # Single-port submissions are incremental and should not deactivate
+        # other ports.
+        if len(seen_ports) > 1:
+            existing_ports_query = select(Port).where(
+                Port.host_id == host.id, Port.is_active == True
+            )
+            existing_ports_result = await db.execute(existing_ports_query)
+            for existing_port in existing_ports_result.scalars():
+                port_key = (existing_port.port_number, existing_port.protocol)
+                if port_key not in seen_ports:
+                    existing_port.is_active = False
+                    event = ScanEvent(
+                        scan_id=scan_id,
+                        event_type="port_closed",
+                        host_id=host.id,
+                        port_id=existing_port.id,
+                        details={
+                            "port_number": existing_port.port_number,
+                            "protocol": existing_port.protocol,
+                        },
+                    )
+                    db.add(event)
+                    events_created += 1
 
     await db.commit()
 

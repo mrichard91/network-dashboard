@@ -121,6 +121,7 @@ func main() {
 
 			log.Printf("Port %d: fingerprinting %d hosts", port, len(results))
 
+			hosts := make([]db.ScanResultHost, 0, len(results))
 			for _, r := range results {
 				// Fingerprint this single port on this host
 				serviceInfo := fingerprinter.FingerprintHost(ctx, r.IP, []int{r.Port})
@@ -138,21 +139,21 @@ func main() {
 					portResult.FingerprintData = info.Fingerprint
 				}
 
-				host := db.ScanResultHost{
+				hosts = append(hosts, db.ScanResultHost{
 					IPAddress: r.IP,
 					Ports:     []db.ScanResultPort{portResult},
-				}
+				})
+			}
 
-				scanResults := &db.ScanResults{
-					ScanID: scanID,
-					Hosts:  []db.ScanResultHost{host},
-				}
+			scanResults := &db.ScanResults{
+				ScanID: scanID,
+				Hosts:  hosts,
+			}
 
-				if err := apiClient.SubmitResults(scanResults); err != nil {
-					log.Printf("Failed to submit results for %s:%d: %v", r.IP, r.Port, err)
-				} else {
-					log.Printf("Submitted: %s:%d (%s)", r.IP, r.Port, portResult.ServiceName)
-				}
+			if err := apiClient.SubmitResults(scanResults); err != nil {
+				log.Printf("Failed to submit %d results for port %d: %v", len(hosts), port, err)
+			} else {
+				log.Printf("Submitted %d results for port %d", len(hosts), port)
 			}
 		}
 
@@ -161,21 +162,27 @@ func main() {
 			ports = scanner.CommonPorts()
 		}
 
+		var scanErr error
+
 		if cfg.ScanAllPorts {
 			log.Printf("Scanning ALL ports (1-65535) on networks %v using %s", cfg.Networks, scannerName)
-			// For all-port scans, we still need to batch - but submit incrementally
 			if useZmap {
-				_, _ = zmapScanner.ScanAllPorts(ctx)
+				_, scanErr = zmapScanner.ScanAllPortsWithCallback(ctx, submitResults)
 			} else {
-				_, _ = tcpScanner.ScanAllPorts(ctx)
+				_, scanErr = tcpScanner.ScanAllPortsWithCallback(ctx, submitResults)
 			}
 		} else {
 			log.Printf("Scanning %d ports on networks %v using %s", len(ports), cfg.Networks, scannerName)
 			if useZmap {
-				_, _ = zmapScanner.ScanPorts(ctx, ports)
+				_, scanErr = zmapScanner.ScanPortsWithCallback(ctx, ports, submitResults)
 			} else {
-				_, _ = tcpScanner.ScanPortsWithCallback(ctx, ports, submitResults)
+				_, scanErr = tcpScanner.ScanPortsWithCallback(ctx, ports, submitResults)
 			}
+		}
+
+		if scanErr != nil {
+			log.Printf("Scan completed with error: %v", scanErr)
+			return
 		}
 
 		log.Println("Scan completed successfully")

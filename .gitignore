@@ -26,6 +26,15 @@ scanner/config.yaml
 # Logs
 *.log
 
+# Rust build artifacts
+tui/target/
+
+# Baseline scan results (contain network-specific data)
+baseline-scans/
+
+# Claude Code local settings
+.claude/
+
 # OS
 .DS_Store
 Thumbs.db

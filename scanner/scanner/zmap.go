@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"os"
 	"os/exec"
 	"strconv"
 	"strings"
@@ -21,10 +20,10 @@ type ZmapResult struct {
 
 // ZmapScanner wraps zmap scanning functionality
 type ZmapScanner struct {
-	Networks    []string
-	Rate        int           // packets per second
-	Timeout     time.Duration // connection timeout for banner grabbing
-	Interface   string        // network interface (optional)
+	Networks  []string
+	Rate      int           // packets per second
+	Timeout   time.Duration // connection timeout for banner grabbing
+	Interface string        // network interface (optional)
 }
 
 // NewZmapScanner creates a new ZmapScanner instance
@@ -60,39 +59,19 @@ func (z *ZmapScanner) ScanPort(ctx context.Context, port int) ([]ZmapResult, err
 
 // scanNetworkPort scans a single network for a specific port using zmap
 func (z *ZmapScanner) scanNetworkPort(ctx context.Context, network string, port int) ([]ZmapResult, error) {
-	// Create a whitelist file for the network (zmap requires this for private ranges)
-	whitelistFile, err := os.CreateTemp("", "zmap-whitelist-*.txt")
-	if err != nil {
-		return nil, fmt.Errorf("failed to create whitelist file: %w", err)
-	}
-	defer os.Remove(whitelistFile.Name())
-
-	if _, err := whitelistFile.WriteString(network + "\n"); err != nil {
-		whitelistFile.Close()
-		return nil, fmt.Errorf("failed to write whitelist: %w", err)
-	}
-	whitelistFile.Close()
-
-	// Create an empty blacklist file (to allow scanning private networks)
-	blacklistFile, err := os.CreateTemp("", "zmap-blacklist-*.txt")
-	if err != nil {
-		return nil, fmt.Errorf("failed to create blacklist file: %w", err)
-	}
-	defer os.Remove(blacklistFile.Name())
-	blacklistFile.Close()
-
-	// Build zmap command
+	// Scan the target subnet directly. Using a whitelist file on this zmap
+	// version causes it to walk the entire IPv4 space and filter, which makes
+	// small private-network scans effectively never finish.
 	args := []string{
 		"-p", strconv.Itoa(port),
-		"-w", whitelistFile.Name(),
-		"-b", blacklistFile.Name(), // empty blacklist to allow private ranges
 		"-r", strconv.Itoa(z.Rate),
-		"-o", "-",           // output to stdout
-		"-f", "saddr",       // only output source address
+		"-o", "-", // output to stdout
+		"-f", "saddr", // only output source address
 		"--output-module=csv",
-		"-q",                // quiet mode
+		"-q", // quiet mode
 		"--disable-syslog",
 		"--cooldown-time=3", // reduce wait time after sending
+		network,
 	}
 
 	if z.Interface != "" {
@@ -165,6 +144,11 @@ func (z *ZmapScanner) scanNetworkPort(ctx context.Context, network string, port 
 
 // ScanPorts scans multiple ports across all configured networks
 func (z *ZmapScanner) ScanPorts(ctx context.Context, ports []int) (map[string][]int, error) {
+	return z.ScanPortsWithCallback(ctx, ports, nil)
+}
+
+// ScanPortsWithCallback scans ports and calls the callback after each port
+func (z *ZmapScanner) ScanPortsWithCallback(ctx context.Context, ports []int, callback PortScanCallback) (map[string][]int, error) {
 	results := make(map[string][]int)
 
 	for _, port := range ports {
@@ -186,6 +170,10 @@ func (z *ZmapScanner) ScanPorts(ctx context.Context, ports []int) (map[string][]
 		for _, r := range portResults {
 			results[r.IP] = append(results[r.IP], r.Port)
 		}
+
+		if callback != nil && len(portResults) > 0 {
+			callback(port, portResults)
+		}
 	}
 
 	return results, nil
@@ -193,11 +181,16 @@ func (z *ZmapScanner) ScanPorts(ctx context.Context, ports []int) (map[string][]
 
 // ScanAllPorts scans all 65535 ports using zmap (much faster than per-port)
 func (z *ZmapScanner) ScanAllPorts(ctx context.Context) (map[string][]int, error) {
+	return z.ScanAllPortsWithCallback(ctx, nil)
+}
+
+// ScanAllPortsWithCallback scans all ports and calls the callback after each port
+func (z *ZmapScanner) ScanAllPortsWithCallback(ctx context.Context, callback PortScanCallback) (map[string][]int, error) {
 	results := make(map[string][]int)
 
 	for _, network := range z.Networks {
 		log.Printf("Scanning all ports on %s...", network)
-		networkResults, err := z.scanNetworkAllPorts(ctx, network)
+		networkResults, err := z.scanNetworkAllPortsWithCallback(ctx, network, callback)
 		if err != nil {
 			log.Printf("Warning: error scanning %s: %v", network, err)
 			continue
@@ -211,9 +204,13 @@ func (z *ZmapScanner) ScanAllPorts(ctx context.Context) (map[string][]int, error
 	return results, nil
 }
 
+func (z *ZmapScanner) scanNetworkAllPorts(ctx context.Context, network string) (map[string][]int, error) {
+	return z.scanNetworkAllPortsWithCallback(ctx, network, nil)
+}
+
 // scanNetworkAllPorts scans all ports on a network by iterating through all 65535 ports
 // This version of zmap (2.1.1) doesn't support port ranges, so we scan individual ports
-func (z *ZmapScanner) scanNetworkAllPorts(ctx context.Context, network string) (map[string][]int, error) {
+func (z *ZmapScanner) scanNetworkAllPortsWithCallback(ctx context.Context, network string, callback PortScanCallback) (map[string][]int, error) {
 	results := make(map[string][]int)
 
 	// Scan all 65535 ports individually
@@ -243,6 +240,10 @@ func (z *ZmapScanner) scanNetworkAllPorts(ctx context.Context, network string) (
 
 			for _, r := range portResults {
 				results[r.IP] = append(results[r.IP], r.Port)
+			}
+
+			if callback != nil && len(portResults) > 0 {
+				callback(port, portResults)
 			}
 		}
 	}

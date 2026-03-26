@@ -22,6 +22,11 @@ services:
       dockerfile: Dockerfile
     environment:
       DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:?err}@postgres:5432/${POSTGRES_DB:-network_dashboard}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      UNIFI_API_KEY: ${UNIFI_API_KEY:-}
+      UNIFI_HOST: ${UNIFI_HOST:-}
+      UNIFI_USERNAME: ${UNIFI_USERNAME:-}
+      UNIFI_PASSWORD: ${UNIFI_PASSWORD:-}
     networks:
       - internal
     depends_on:

@@ -3,7 +3,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.database import engine, Base
-from app.routers import hosts, ports, events, annotations, scan
+from app.routers import hosts, ports, events, annotations, scan, chat, unifi
 
 
 @asynccontextmanager
@@ -36,6 +36,8 @@ app.include_router(ports.router, prefix="/api")
 app.include_router(events.router, prefix="/api")
 app.include_router(annotations.router, prefix="/api")
 app.include_router(scan.router, prefix="/api")
+app.include_router(chat.router, prefix="/api")
+app.include_router(unifi.router, prefix="/api")
 
 
 @app.get("/api/health")

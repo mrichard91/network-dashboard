@@ -49,6 +49,7 @@ class HostWithPorts(Host):
 
 class HostList(Host):
     port_count: int = 0
+    ports: list[PortSummary] = []
     latest_annotation: Optional[str] = None
 
 

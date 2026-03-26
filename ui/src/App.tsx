@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, Link } from 'react-router-dom';
 import Dashboard from './components/Dashboard';
 import HostDetail from './components/HostDetail';
 import PortsPage from './components/PortsPage';
+import ChatPage from './components/ChatPage';
 
 export default function App() {
   return (
@@ -29,6 +30,7 @@ export default function App() {
               <div className="flex items-center space-x-4">
                 <Link to="/" className="text-gray-600 hover:text-gray-900">Dashboard</Link>
                 <Link to="/ports" className="text-gray-600 hover:text-gray-900">Ports</Link>
+                <Link to="/chat" className="text-gray-600 hover:text-gray-900">Chat</Link>
               </div>
             </div>
           </div>
@@ -39,6 +41,7 @@ export default function App() {
             <Route path="/" element={<Dashboard />} />
             <Route path="/hosts/:id" element={<HostDetail />} />
             <Route path="/ports" element={<PortsPage />} />
+            <Route path="/chat" element={<ChatPage />} />
           </Routes>
         </main>
       </div>

@@ -9,6 +9,7 @@ import type {
   DashboardStats,
   PortSummary,
   PortDetail,
+  UnifiEnrichment,
 } from '../types';
 
 const API_BASE = '/api';
@@ -243,6 +244,42 @@ export function usePortsSummary() {
   }, [refresh]);
 
   return { ports, loading, error, refresh };
+}
+
+export function useUnifiEnrichment(ip: string | null, mac: string | null) {
+  const [enrichment, setEnrichment] = useState<UnifiEnrichment | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    if (!ip && !mac) {
+      setLoading(false);
+      return;
+    }
+    let cancelled = false;
+    async function load() {
+      try {
+        const params = new URLSearchParams();
+        if (ip) params.set('ip', ip);
+        if (mac) params.set('mac', mac);
+        const resp = await fetch(`${API_BASE}/unifi/host-enrichment?${params}`);
+        if (!resp.ok) {
+          // 404 = no match, 503 = not configured — both are fine
+          setEnrichment(null);
+          return;
+        }
+        const data: UnifiEnrichment = await resp.json();
+        if (!cancelled) setEnrichment(data);
+      } catch {
+        if (!cancelled) setEnrichment(null);
+      } finally {
+        if (!cancelled) setLoading(false);
+      }
+    }
+    load();
+    return () => { cancelled = true; };
+  }, [ip, mac]);
+
+  return { enrichment, loading };
 }
 
 export function usePortDetail(portNumber: number, protocol = 'tcp') {
